@@ -1,0 +1,1054 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LLM VRAM Calculator</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;700&family=Syne:wght@400;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0a0c10;
+    --surface: #111318;
+    --surface2: #181c24;
+    --border: #1e2330;
+    --border2: #252b3b;
+    --accent: #00d4ff;
+    --accent2: #7c3aed;
+    --accent3: #f59e0b;
+    --green: #10b981;
+    --red: #ef4444;
+    --orange: #f97316;
+    --text: #e2e8f0;
+    --text2: #94a3b8;
+    --text3: #475569;
+    --glow: 0 0 20px rgba(0,212,255,0.15);
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'JetBrains Mono', monospace;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* Animated grid background */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image:
+      linear-gradient(rgba(0,212,255,0.03) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(0,212,255,0.03) 1px, transparent 1px);
+    background-size: 40px 40px;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  .container {
+    max-width: 1100px;
+    margin: 0 auto;
+    padding: 48px 24px;
+    position: relative;
+    z-index: 1;
+  }
+
+  /* Header */
+  header {
+    margin-bottom: 48px;
+  }
+
+  .eyebrow {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    font-weight: 500;
+    letter-spacing: 0.2em;
+    color: var(--accent);
+    text-transform: uppercase;
+    margin-bottom: 12px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .eyebrow::before {
+    content: '';
+    display: inline-block;
+    width: 20px;
+    height: 1px;
+    background: var(--accent);
+  }
+
+  h1 {
+    font-family: 'Syne', sans-serif;
+    font-size: clamp(32px, 5vw, 52px);
+    font-weight: 800;
+    letter-spacing: -0.02em;
+    line-height: 1;
+    color: var(--text);
+    margin-bottom: 12px;
+  }
+
+  h1 span {
+    color: var(--accent);
+  }
+
+  .subtitle {
+    font-size: 13px;
+    color: var(--text2);
+    line-height: 1.6;
+    max-width: 500px;
+  }
+
+  /* Layout */
+  .layout {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 24px;
+    align-items: start;
+  }
+
+  @media (max-width: 768px) {
+    .layout { grid-template-columns: 1fr; }
+  }
+
+  /* Panel */
+  .panel {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 2px;
+    padding: 28px;
+    position: relative;
+  }
+
+  .panel::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 2px;
+    background: linear-gradient(90deg, var(--accent), var(--accent2));
+    border-radius: 2px 2px 0 0;
+  }
+
+  .panel-title {
+    font-family: 'Syne', sans-serif;
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: var(--text2);
+    margin-bottom: 24px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .panel-title-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--accent);
+    box-shadow: 0 0 8px var(--accent);
+  }
+
+  /* Form groups */
+  .form-group {
+    margin-bottom: 20px;
+  }
+
+  label {
+    display: block;
+    font-size: 11px;
+    font-weight: 500;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--text2);
+    margin-bottom: 8px;
+  }
+
+  .label-hint {
+    font-size: 10px;
+    color: var(--text3);
+    letter-spacing: 0;
+    text-transform: none;
+    font-weight: 400;
+  }
+
+  input[type="number"], select {
+    width: 100%;
+    background: var(--bg);
+    border: 1px solid var(--border2);
+    border-radius: 2px;
+    padding: 10px 14px;
+    color: var(--text);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 14px;
+    outline: none;
+    transition: border-color 0.2s, box-shadow 0.2s;
+    appearance: none;
+  }
+
+  input[type="number"]:focus, select:focus {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 2px rgba(0,212,255,0.1);
+  }
+
+  select {
+    cursor: pointer;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='2'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 12px center;
+    padding-right: 36px;
+  }
+
+  /* Slider */
+  .slider-wrap {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  input[type="range"] {
+    flex: 1;
+    -webkit-appearance: none;
+    height: 4px;
+    background: var(--border2);
+    border-radius: 2px;
+    outline: none;
+    cursor: pointer;
+  }
+
+  input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: var(--accent);
+    box-shadow: 0 0 8px rgba(0,212,255,0.5);
+    cursor: pointer;
+    transition: transform 0.15s;
+  }
+
+  input[type="range"]::-webkit-slider-thumb:hover {
+    transform: scale(1.2);
+  }
+
+  .slider-value {
+    font-size: 14px;
+    color: var(--accent);
+    font-weight: 700;
+    min-width: 48px;
+    text-align: right;
+  }
+
+  /* Preset buttons */
+  .presets {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+    margin-bottom: 4px;
+  }
+
+  .preset-btn {
+    background: var(--surface2);
+    border: 1px solid var(--border2);
+    border-radius: 2px;
+    padding: 4px 10px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    color: var(--text2);
+    cursor: pointer;
+    transition: all 0.15s;
+    letter-spacing: 0.05em;
+  }
+
+  .preset-btn:hover, .preset-btn.active {
+    background: rgba(0,212,255,0.1);
+    border-color: var(--accent);
+    color: var(--accent);
+  }
+
+  /* Results panel */
+  .results-panel {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 2px;
+    padding: 28px;
+    position: relative;
+  }
+
+  .results-panel::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 2px;
+    background: linear-gradient(90deg, var(--green), var(--accent));
+    border-radius: 2px 2px 0 0;
+  }
+
+  /* Result rows */
+  .result-section {
+    margin-bottom: 24px;
+  }
+
+  .result-section-title {
+    font-size: 10px;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: var(--text3);
+    margin-bottom: 12px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .result-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 0;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .result-row:last-child {
+    border-bottom: none;
+  }
+
+  .result-label {
+    font-size: 12px;
+    color: var(--text2);
+  }
+
+  .result-value {
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--text);
+  }
+
+  .result-value.accent { color: var(--accent); }
+  .result-value.green { color: var(--green); }
+  .result-value.orange { color: var(--orange); }
+  .result-value.red { color: var(--red); }
+
+  /* Total VRAM display */
+  .total-block {
+    background: var(--surface2);
+    border: 1px solid var(--border2);
+    border-radius: 2px;
+    padding: 20px;
+    margin-bottom: 20px;
+    text-align: center;
+  }
+
+  .total-label {
+    font-size: 10px;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--text3);
+    margin-bottom: 8px;
+  }
+
+  .total-value {
+    font-family: 'Syne', sans-serif;
+    font-size: 48px;
+    font-weight: 800;
+    letter-spacing: -0.02em;
+    line-height: 1;
+    transition: color 0.3s;
+  }
+
+  .total-unit {
+    font-size: 20px;
+    color: var(--text2);
+    font-weight: 400;
+  }
+
+  /* VRAM bar */
+  .vram-bars {
+    margin-bottom: 20px;
+  }
+
+  .bar-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 8px;
+  }
+
+  .bar-label {
+    font-size: 10px;
+    color: var(--text2);
+    width: 100px;
+    flex-shrink: 0;
+  }
+
+  .bar-track {
+    flex: 1;
+    height: 8px;
+    background: var(--surface2);
+    border-radius: 1px;
+    overflow: hidden;
+  }
+
+  .bar-fill {
+    height: 100%;
+    border-radius: 1px;
+    transition: width 0.4s ease;
+  }
+
+  .bar-fill.weights { background: var(--accent); }
+  .bar-fill.kvcache { background: var(--accent2); }
+  .bar-fill.activations { background: var(--accent3); }
+  .bar-fill.overhead { background: var(--green); }
+
+  .bar-val {
+    font-size: 10px;
+    color: var(--text2);
+    width: 52px;
+    text-align: right;
+    flex-shrink: 0;
+  }
+
+  /* Verdict badge */
+  .verdict {
+    border-radius: 2px;
+    padding: 12px 16px;
+    margin-top: 16px;
+    font-size: 12px;
+    font-weight: 500;
+    line-height: 1.5;
+  }
+
+  .verdict.green { background: rgba(16,185,129,0.1); border: 1px solid rgba(16,185,129,0.3); color: var(--green); }
+  .verdict.orange { background: rgba(249,115,22,0.1); border: 1px solid rgba(249,115,22,0.3); color: var(--orange); }
+  .verdict.red { background: rgba(239,68,68,0.1); border: 1px solid rgba(239,68,68,0.3); color: var(--red); }
+
+  /* GPU reference table */
+  .gpu-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 11px;
+    margin-top: 8px;
+  }
+
+  .gpu-table th {
+    text-align: left;
+    padding: 6px 8px;
+    color: var(--text3);
+    font-weight: 500;
+    letter-spacing: 0.05em;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .gpu-table td {
+    padding: 8px 8px;
+    border-bottom: 1px solid var(--border);
+    color: var(--text2);
+  }
+
+  .gpu-table tr:last-child td { border-bottom: none; }
+
+  .gpu-table .gpu-fit {
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    margin-right: 4px;
+  }
+
+  /* Full width panel */
+  .full-width {
+    grid-column: 1 / -1;
+  }
+
+  /* Formula note */
+  .formula-note {
+    background: var(--surface2);
+    border-left: 2px solid var(--accent2);
+    padding: 12px 16px;
+    margin-top: 16px;
+    font-size: 11px;
+    color: var(--text3);
+    line-height: 1.6;
+  }
+
+  .formula-note code {
+    color: var(--accent);
+    background: rgba(0,212,255,0.05);
+    padding: 1px 4px;
+    border-radius: 2px;
+  }
+
+  /* Divider */
+  .divider {
+    height: 1px;
+    background: var(--border);
+    margin: 20px 0;
+  }
+
+  /* Scenario tabs */
+  .scenario-tabs {
+    display: flex;
+    gap: 4px;
+    margin-bottom: 20px;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 2px;
+    padding: 4px;
+  }
+
+  .scenario-tab {
+    flex: 1;
+    padding: 8px 12px;
+    background: none;
+    border: none;
+    border-radius: 1px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--text3);
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+
+  .scenario-tab:hover { color: var(--text2); }
+  .scenario-tab.active {
+    background: var(--surface2);
+    color: var(--accent);
+    border: 1px solid var(--border2);
+  }
+
+  /* Animate in */
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(16px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  .panel, .results-panel { animation: fadeUp 0.4s ease both; }
+  .panel:nth-child(2) { animation-delay: 0.1s; }
+
+  /* Info tooltip */
+  .info {
+    display: inline-block;
+    width: 14px;
+    height: 14px;
+    background: var(--border2);
+    border-radius: 50%;
+    font-size: 9px;
+    color: var(--text3);
+    text-align: center;
+    line-height: 14px;
+    cursor: help;
+    margin-left: 4px;
+    vertical-align: middle;
+  }
+</style>
+</head>
+<body>
+<div class="container">
+
+  <header>
+    <div class="eyebrow">Inference Infrastructure</div>
+    <h1>VRAM <span>Calculator</span></h1>
+    <p class="subtitle">Realistic inference memory estimation for Qwen3.6 (hybrid attention, MoE) and Gemma-2-27B reference. Architecture parameters from official model cards. Hybrid-attention layers, linear-attention state, and MoE active-vs-total parameters are modelled separately.</p>
+  </header>
+
+  <!-- Scenario quick-load -->
+  <div class="panel full-width" style="margin-bottom:24px; padding: 16px 28px;">
+    <div class="panel-title"><span class="panel-title-dot"></span>Quick Scenarios</div>
+    <div class="scenario-tabs">
+      <button class="scenario-tab" onclick="loadScenario('offpeak')">Off-Peak</button>
+      <button class="scenario-tab" onclick="loadScenario('normal')">Normal Load</button>
+      <button class="scenario-tab active" onclick="loadScenario('peak')">Peak Load</button>
+      <button class="scenario-tab" onclick="loadScenario('stresspeak')">Stress Peak</button>
+    </div>
+    <div style="font-size:11px; color:var(--text3);" id="scenario-desc">Peak load: 10–20 simultaneous users. Typical busy office period (10:00–11:00, 14:00–15:00).</div>
+  </div>
+
+  <div class="layout">
+
+    <!-- Left: Inputs -->
+    <div>
+      <div class="panel">
+        <div class="panel-title"><span class="panel-title-dot"></span>Model Parameters</div>
+
+        <div class="form-group">
+          <label>Model</label>
+          <select id="modelSelect" onchange="onModelChange()">
+            <option value="qwen36-27b" selected>Qwen3.6-27B — dense, hybrid attention</option>
+            <option value="qwen36-35b-a3b">Qwen3.6-35B-A3B — MoE (3B active), hybrid</option>
+            <option value="gemma2-27b">Gemma-2-27B — dense, classic attention (reference)</option>
+          </select>
+          <div style="font-size:10px;color:var(--text3);margin-top:6px;line-height:1.5;" id="model-desc">
+            27B params · 64 layers (16 attn + 48 linear) · 4 KV heads · 256k context
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label>Inference Quantization</label>
+          <select id="quant" onchange="calc()">
+            <option value="4">Q4 — ~0.55 bytes/param (incl. metadata overhead)</option>
+            <option value="8" selected>Q8 — 1.0 byte/param (recommended)</option>
+            <option value="16">FP16/BF16 — 2.0 bytes/param (full)</option>
+            <option value="32">FP32 — 4.0 bytes/param (training)</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label>KV Cache Quantization</label>
+          <select id="kvQuant" onchange="calc()">
+            <option value="2">FP16 — 2 bytes (default)</option>
+            <option value="1">INT8/FP8 — 1 byte (recommended)</option>
+          </select>
+        </div>
+
+        <div class="divider"></div>
+        <div class="panel-title" style="margin-bottom:20px;"><span class="panel-title-dot" style="background:var(--accent2);box-shadow:0 0 8px var(--accent2);"></span>Load Parameters</div>
+
+        <div class="form-group">
+          <label>Concurrent Users <span title="Number of users actively receiving tokens simultaneously" class="info">?</span></label>
+          <div class="slider-wrap">
+            <input type="range" id="users" min="1" max="32" value="12" step="1" oninput="syncSlider('users','usersVal','');calc()">
+            <span class="slider-value" id="usersVal">12</span>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label>Batch Size <span title="Keep matched to concurrent users for realistic estimates" class="info">?</span></label>
+          <div class="slider-wrap">
+            <input type="range" id="batch" min="1" max="32" value="12" step="1" oninput="syncSlider('batch','batchVal','');calc()">
+            <span class="slider-value" id="batchVal">12</span>
+          </div>
+          <div style="font-size:10px;color:var(--text3);margin-top:6px;" id="batch-warning"></div>
+        </div>
+
+        <div class="form-group">
+          <label>Sequence Length <span title="Max tokens per request (input + output combined). Qwen3.6 supports 262k native, up to 1M with YaRN." class="info">?</span></label>
+          <div class="slider-wrap">
+            <input type="range" id="seqLen" min="512" max="262144" value="16000" step="512" oninput="syncSliderK('seqLen','seqLenVal');calc()">
+            <span class="slider-value" id="seqLenVal">16k</span>
+          </div>
+          <div class="presets" style="margin-top:8px;">
+            <button class="preset-btn" onclick="setSlider('seqLen',4096,'seqLenVal','',true);calc()">4k</button>
+            <button class="preset-btn" onclick="setSlider('seqLen',8192,'seqLenVal','',true);calc()">8k</button>
+            <button class="preset-btn active" onclick="setSlider('seqLen',16000,'seqLenVal','',true);calc()">16k</button>
+            <button class="preset-btn" onclick="setSlider('seqLen',32768,'seqLenVal','',true);calc()">32k</button>
+            <button class="preset-btn" onclick="setSlider('seqLen',65536,'seqLenVal','',true);calc()">64k</button>
+            <button class="preset-btn" onclick="setSlider('seqLen',131072,'seqLenVal','',true);calc()">128k</button>
+            <button class="preset-btn" onclick="setSlider('seqLen',262144,'seqLenVal','',true);calc()">256k</button>
+          </div>
+        </div>
+
+        <div class="divider"></div>
+        <div class="panel-title" style="margin-bottom:20px;"><span class="panel-title-dot" style="background:var(--accent3);box-shadow:0 0 8px var(--accent3);"></span>Architecture</div>
+
+        <div class="form-group">
+          <div id="arch-info" style="font-size:11px;color:var(--text2);line-height:1.7;background:var(--surface2);border-left:2px solid var(--accent3);padding:10px 14px;">
+            <div><span style="color:var(--text3)">Layers:</span> <span id="arch-layers">—</span></div>
+            <div><span style="color:var(--text3)">Attention layers (KV-cache):</span> <span id="arch-attn-layers">—</span></div>
+            <div><span style="color:var(--text3)">KV heads × head dim:</span> <span id="arch-kv">—</span></div>
+            <div><span style="color:var(--text3)">Type:</span> <span id="arch-type">—</span></div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- Right: Results -->
+    <div>
+      <div class="results-panel">
+        <div class="panel-title"><span class="panel-title-dot" style="background:var(--green);box-shadow:0 0 8px var(--green);"></span>Memory Estimate</div>
+
+        <div class="total-block">
+          <div class="total-label">Total VRAM Required</div>
+          <div class="total-value" id="totalVram" style="color:var(--green)">— <span class="total-unit">GB</span></div>
+          <div style="font-size:11px;color:var(--text3);margin-top:6px;" id="totalNote">Realistic inference estimate (not worst-case)</div>
+        </div>
+
+        <!-- Bar breakdown -->
+        <div class="vram-bars">
+          <div class="bar-row">
+            <div class="bar-label">Weights</div>
+            <div class="bar-track"><div class="bar-fill weights" id="bar-weights" style="width:0%"></div></div>
+            <div class="bar-val" id="val-weights">—</div>
+          </div>
+          <div class="bar-row">
+            <div class="bar-label">KV Cache</div>
+            <div class="bar-track"><div class="bar-fill kvcache" id="bar-kvcache" style="width:0%"></div></div>
+            <div class="bar-val" id="val-kvcache">—</div>
+          </div>
+          <div class="bar-row">
+            <div class="bar-label">Activations</div>
+            <div class="bar-track"><div class="bar-fill activations" id="bar-activations" style="width:0%"></div></div>
+            <div class="bar-val" id="val-activations">—</div>
+          </div>
+          <div class="bar-row">
+            <div class="bar-label">Overhead</div>
+            <div class="bar-track"><div class="bar-fill overhead" id="bar-overhead" style="width:0%"></div></div>
+            <div class="bar-val" id="val-overhead">—</div>
+          </div>
+        </div>
+
+        <div class="result-section">
+          <div class="result-section-title">Component Breakdown</div>
+          <div class="result-row">
+            <span class="result-label">Model weights</span>
+            <span class="result-value accent" id="r-weights">—</span>
+          </div>
+          <div class="result-row">
+            <span class="result-label">KV cache (realistic)</span>
+            <span class="result-value" style="color:var(--accent2)" id="r-kvcache">—</span>
+          </div>
+          <div class="result-row">
+            <span class="result-label">KV cache (worst-case)</span>
+            <span class="result-value" id="r-kvcache-wc" style="color:var(--text3)">—</span>
+          </div>
+          <div class="result-row" id="row-linear" style="display:none;">
+            <span class="result-label">Linear-attn state <span class="label-hint">(hybrid)</span></span>
+            <span class="result-value" style="color:var(--accent2)" id="r-linear">—</span>
+          </div>
+          <div class="result-row">
+            <span class="result-label">Activations (inference)</span>
+            <span class="result-value" style="color:var(--accent3)" id="r-activations">—</span>
+          </div>
+          <div class="result-row">
+            <span class="result-label">Framework overhead</span>
+            <span class="result-value green" id="r-overhead">—</span>
+          </div>
+        </div>
+
+        <div class="result-section">
+          <div class="result-section-title">GPU Fit Reference</div>
+          <table class="gpu-table" id="gpu-table">
+            <thead>
+              <tr>
+                <th>GPU</th>
+                <th>VRAM</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody id="gpu-tbody"></tbody>
+          </table>
+        </div>
+
+        <div id="verdict" class="verdict green">—</div>
+
+        <div class="formula-note">
+          For classical models: KV memory = <code>2 × L_attn × Nkv × Dkv × S × B × Cb</code>. Hybrid models (Qwen3.6) only count the classical attention layers (16/64 for 27B, 10/40 for 35B-A3B); the linear-attention layers carry a small batch-proportional state instead. MoE models hold all expert weights resident in VRAM, but activation memory scales with active params (3B for 35B-A3B). Q4 uses <code>0.55 b/p</code> (~10% metadata overhead). Specs from official Qwen3.6 model cards and Gemma-2 paper.
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// Model registry — three concrete models, no size slider.
+// Specs sourced from official model cards (Qwen3.6 HF cards, Gemma-2 paper).
+//
+// HYBRID MODELS (Qwen3.6): only a fraction of layers carry a classical KV cache.
+//   The rest are linear-attention (Gated DeltaNet) layers whose recurrent
+//   state is constant in sequence length — we account for it as a small
+//   fixed overhead per active sequence rather than via the standard KV formula.
+//
+// MOE: total weight footprint stays in VRAM (all experts must be resident for
+//   low-latency serving), but ACTIVE params drive the per-token compute and
+//   therefore the activation memory.
+const MODELS = {
+  'qwen36-27b': {
+    name: 'Qwen3.6-27B',
+    description: '27B params · 64 layers (16 attn + 48 linear) · 4 KV heads · 256k context',
+    totalParamsB: 27,
+    activeParamsB: 27,           // dense → all params active
+    isMoE: false,
+    isHybrid: true,
+    totalLayers: 64,
+    attnLayers: 16,              // classical attention layers with KV cache
+    linearLayers: 48,            // Gated DeltaNet layers
+    numKVHeads: 4,
+    headDim: 256,
+    // DeltaNet recurrent state per layer per sequence (V_heads × headDim_v × headDim_k)
+    // ~ 48 V heads × 128 × 128 × 2 bytes ≈ 1.5 MB per layer per seq
+    deltaStateBytesPerLayerPerSeq: 48 * 128 * 128 * 2,
+    archType: 'Dense + Hybrid attention (Gated DeltaNet + Gated Attention)',
+  },
+  'qwen36-35b-a3b': {
+    name: 'Qwen3.6-35B-A3B',
+    description: '35B total / 3B active · MoE (256 experts, 8+1 active) · 40 layers (10 attn + 30 linear)',
+    totalParamsB: 35,
+    activeParamsB: 3,            // 3B active per token via expert routing
+    isMoE: true,
+    isHybrid: true,
+    totalLayers: 40,
+    attnLayers: 10,
+    linearLayers: 30,
+    numKVHeads: 2,
+    headDim: 256,
+    deltaStateBytesPerLayerPerSeq: 32 * 128 * 128 * 2, // 32 V heads
+    archType: 'MoE + Hybrid attention (256 experts, 8 routed + 1 shared)',
+  },
+  'gemma2-27b': {
+    name: 'Gemma-2-27B',
+    description: '27B params · 46 layers (all classical) · 16 KV heads · 8k context',
+    totalParamsB: 27,
+    activeParamsB: 27,
+    isMoE: false,
+    isHybrid: false,
+    totalLayers: 46,
+    attnLayers: 46,              // all layers are classical attention
+    linearLayers: 0,
+    numKVHeads: 16,
+    headDim: 128,
+    deltaStateBytesPerLayerPerSeq: 0,
+    archType: 'Dense + Classical GQA (32 Q heads / 16 KV heads, ratio 2:1)',
+  },
+};
+
+function calcVRAM() {
+  const modelKey = document.getElementById('modelSelect').value;
+  const model = MODELS[modelKey];
+  const quantBits = parseFloat(document.getElementById('quant').value);
+  const kvQuantBytes = parseFloat(document.getElementById('kvQuant').value);
+  const users = parseInt(document.getElementById('users').value);
+  const batch = parseInt(document.getElementById('batch').value);
+  const seqLen = parseInt(document.getElementById('seqLen').value);
+
+  // 1. Bytes per parameter
+  // Q4 ≈ 0.55 b/p (incl. ~10% metadata overhead), Q8 = 1.0, FP16 = 2.0, FP32 = 4.0
+  let bytesPerParam;
+  if (quantBits === 4) {
+    bytesPerParam = 0.55;
+  } else {
+    bytesPerParam = quantBits / 8;
+  }
+
+  // 2. Model weights — uses TOTAL params (all experts must be resident in VRAM
+  //    for low-latency serving, even for MoE)
+  const weightsGB = (model.totalParamsB * 1e9 * bytesPerParam) / (1024 ** 3);
+
+  // 3. KV cache — only counts CLASSICAL attention layers, not linear ones
+  //    Formula: 2 × L_attn × Nkv × Dkv × S × B × Cb
+  const activeSequences = Math.max(batch, users);
+  const kvBytes = 2 * model.attnLayers * model.numKVHeads * model.headDim
+                  * seqLen * activeSequences * kvQuantBytes;
+  const kvCacheWC = kvBytes / (1024 ** 3);
+  const kvCacheRealistic = kvCacheWC * 0.60;  // PagedAttention typical fill
+
+  // 4. Linear-attention recurrent state (DeltaNet) — constant in S, scales with batch
+  //    Only present for hybrid models
+  const linearStateBytes = model.linearLayers * model.deltaStateBytesPerLayerPerSeq * activeSequences;
+  const linearStateGB = linearStateBytes / (1024 ** 3);
+
+  // 5. Activations — driven by ACTIVE params (MoE only routes through 3B per token)
+  //    Reference scale: 27B at base. MoE with 3B active is much lighter.
+  const seqFactor = Math.max(1, Math.log2(seqLen / 4096) + 1);
+  const activeFactor = Math.max(0.3, model.activeParamsB / 27);
+  const activationsGB = Math.min(1 + (activeSequences * 0.1 * seqFactor * activeFactor), 12);
+
+  // 6. Framework overhead — scales with TOTAL weight footprint (CUDA workspace,
+  //    cuBLAS handles, expert routing tables for MoE, etc.)
+  //    MoE adds extra overhead because of routing logic and expert metadata.
+  let overheadGB = 1.5 + Math.floor(model.totalParamsB / 30) * 0.5;
+  if (model.isMoE) overheadGB += 1.0; // expert routing tables, gate caches
+
+  // Total realistic
+  const totalGB = weightsGB + kvCacheRealistic + linearStateGB + activationsGB + overheadGB;
+
+  return {
+    weightsGB, kvCacheWC, kvCacheRealistic, linearStateGB,
+    activationsGB, overheadGB, totalGB,
+    model, bytesPerParam,
+  };
+}
+
+const GPUS = [
+  { name: 'RTX 4090', vram: 24 },
+  { name: 'RTX 6000 Ada', vram: 48 },
+  { name: 'RTX PRO 6000 Blackwell', vram: 96 },
+  { name: '2× RTX 6000 Ada', vram: 96 },
+  { name: 'A100 80GB', vram: 80 },
+  { name: 'H100 80GB', vram: 80 },
+];
+
+function gpuStatus(total, vram) {
+  const pct = (total / vram) * 100;
+  if (pct <= 70) return { label: 'Comfortable', color: '#10b981', dot: '#10b981' };
+  if (pct <= 90) return { label: 'Tight', color: '#f59e0b', dot: '#f59e0b' };
+  if (pct <= 100) return { label: 'Marginal', color: '#f97316', dot: '#f97316' };
+  return { label: 'Insufficient', color: '#ef4444', dot: '#ef4444' };
+}
+
+function fmt(gb) {
+  return gb.toFixed(1) + ' GB';
+}
+
+function calc() {
+  const r = calcVRAM();
+  const total = r.totalGB;
+  const m = r.model;
+
+  // Update architecture info panel
+  document.getElementById('arch-layers').textContent =
+    m.totalLayers + (m.isHybrid ? ' total' : '');
+  document.getElementById('arch-attn-layers').textContent =
+    m.attnLayers + ' / ' + m.totalLayers + (m.isHybrid ? ' (rest is linear)' : ' (all classical)');
+  document.getElementById('arch-kv').textContent =
+    m.numKVHeads + ' × ' + m.headDim;
+  document.getElementById('arch-type').textContent = m.archType;
+  document.getElementById('model-desc').textContent = m.description;
+
+  // Batch/user mismatch warning
+  const users = parseInt(document.getElementById('users').value);
+  const batch = parseInt(document.getElementById('batch').value);
+  const warn = document.getElementById('batch-warning');
+  if (batch > users * 1.5) {
+    warn.textContent = '⚠ Batch size exceeds users — consider matching them for accurate estimates.';
+    warn.style.color = 'var(--orange)';
+  } else {
+    warn.textContent = '';
+  }
+
+  // Color total
+  const totalEl = document.getElementById('totalVram');
+  let totalColor = 'var(--green)';
+  if (total > 80) totalColor = 'var(--red)';
+  else if (total > 50) totalColor = 'var(--orange)';
+  totalEl.style.color = totalColor;
+  totalEl.innerHTML = total.toFixed(1) + ' <span class="total-unit">GB</span>';
+
+  // Update component values
+  document.getElementById('r-weights').textContent = fmt(r.weightsGB);
+  document.getElementById('r-kvcache').textContent = fmt(r.kvCacheRealistic);
+  document.getElementById('r-kvcache-wc').textContent = fmt(r.kvCacheWC);
+  document.getElementById('r-activations').textContent = fmt(r.activationsGB);
+  document.getElementById('r-overhead').textContent = fmt(r.overheadGB);
+
+  // Linear state row — only meaningful for hybrid models
+  const linearRow = document.getElementById('row-linear');
+  const linearVal = document.getElementById('r-linear');
+  if (m.isHybrid && r.linearStateGB > 0.01) {
+    linearRow.style.display = '';
+    linearVal.textContent = fmt(r.linearStateGB);
+  } else {
+    linearRow.style.display = 'none';
+  }
+
+  // Bars
+  const maxForBar = total * 1.05;
+  document.getElementById('bar-weights').style.width = ((r.weightsGB / maxForBar) * 100) + '%';
+  document.getElementById('bar-kvcache').style.width = ((r.kvCacheRealistic / maxForBar) * 100) + '%';
+  document.getElementById('bar-activations').style.width = ((r.activationsGB / maxForBar) * 100) + '%';
+  document.getElementById('bar-overhead').style.width = ((r.overheadGB / maxForBar) * 100) + '%';
+  document.getElementById('val-weights').textContent = fmt(r.weightsGB);
+  document.getElementById('val-kvcache').textContent = fmt(r.kvCacheRealistic);
+  document.getElementById('val-activations').textContent = fmt(r.activationsGB);
+  document.getElementById('val-overhead').textContent = fmt(r.overheadGB);
+
+  // GPU table
+  const tbody = document.getElementById('gpu-tbody');
+  tbody.innerHTML = '';
+  GPUS.forEach(gpu => {
+    const st = gpuStatus(total, gpu.vram);
+    const pct = Math.min(((total / gpu.vram) * 100), 999).toFixed(0);
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td>${gpu.name}</td>
+      <td>${gpu.vram} GB</td>
+      <td style="color:${st.color}">
+        <span class="gpu-fit" style="background:${st.dot};box-shadow:0 0 6px ${st.dot}"></span>
+        ${st.label} <span style="color:var(--text3);font-size:10px">(${pct}%)</span>
+      </td>`;
+    tbody.appendChild(tr);
+  });
+
+  // Verdict — thresholds align with GPU-table status (≤70% comfortable, ≤90% tight).
+  const verdictEl = document.getElementById('verdict');
+  if (total <= 48 * 0.70) {
+    verdictEl.className = 'verdict green';
+    verdictEl.textContent = `✓ Fits comfortably on a single RTX 6000 Ada (48 GB). Good configuration for your workload.`;
+  } else if (total <= 48) {
+    verdictEl.className = 'verdict green';
+    verdictEl.textContent = `✓ Fits on a single RTX 6000 Ada (48 GB), though it gets tight. Consider an 80 GB GPU for headroom.`;
+  } else if (total <= 80 * 0.70) {
+    verdictEl.className = 'verdict orange';
+    verdictEl.textContent = `⚡ Exceeds RTX 6000 Ada (48 GB). Fits comfortably on A100/H100 (80 GB) or RTX PRO 6000 Blackwell (96 GB).`;
+  } else if (total <= 80) {
+    verdictEl.className = 'verdict orange';
+    verdictEl.textContent = `⚡ Fits on A100/H100 (80 GB) but tight. Recommended: RTX PRO 6000 Blackwell (96 GB) for headroom.`;
+  } else if (total <= 96 * 0.95) {
+    verdictEl.className = 'verdict orange';
+    verdictEl.textContent = `⚡ Exceeds A100/H100 (80 GB). Fits on RTX PRO 6000 Blackwell (96 GB) or 2× RTX 6000 Ada.`;
+  } else if (total <= 96) {
+    verdictEl.className = 'verdict red';
+    verdictEl.textContent = `✗ At ${total.toFixed(1)} GB you have no headroom on a 96 GB GPU. Reduce batch/sequence/quant or scale to 2× GPUs.`;
+  } else {
+    verdictEl.className = 'verdict red';
+    verdictEl.textContent = `✗ Exceeds 96 GB. Consider reducing batch size, sequence length, or quantization (try Q4).`;
+  }
+}
+
+function onModelChange() {
+  calc();
+}
+
+// Sync slider display
+function syncSlider(id, valId, suffix='B') {
+  const v = document.getElementById(id).value;
+  document.getElementById(valId).textContent = v + suffix;
+  // update active presets
+  document.querySelectorAll(`.preset-btn`).forEach(b => {
+    if (b.getAttribute('onclick') && b.getAttribute('onclick').includes(`'${id}'`)) {
+      b.classList.remove('active');
+    }
+  });
+}
+
+function syncSliderK(id, valId) {
+  const v = parseInt(document.getElementById(id).value);
+  const display = v >= 1024 ? (v/1024).toFixed(0) + 'k' : v;
+  document.getElementById(valId).textContent = display;
+}
+
+function setSlider(id, val, valId, suffix='', isK=false) {
+  document.getElementById(id).value = val;
+  if (isK) {
+    syncSliderK(id, valId);
+  } else {
+    document.getElementById(valId).textContent = val + suffix;
+  }
+  // update active preset buttons
+  document.querySelectorAll('.preset-btn').forEach(b => {
+    const oc = b.getAttribute('onclick') || '';
+    if (oc.includes(`'${id}'`)) {
+      b.classList.toggle('active', oc.includes(`,${val},`) || oc.includes(`,${val},'`));
+    }
+  });
+}
+
+// Quick scenarios
+const scenarios = {
+  offpeak:    { users:2,  batch:2,  seq:8192,  desc:'Off-peak: 1–3 simultaneous users. Early morning, lunch, after 17:00.' },
+  normal:     { users:6,  batch:6,  seq:12000, desc:'Normal load: 3–8 simultaneous users. 09:00–12:00, 13:00–16:00.' },
+  peak:       { users:12, batch:12, seq:16000, desc:'Peak load: 10–20 simultaneous users. Typical busy office period (10:00–11:00, 14:00–15:00).' },
+  stresspeak: { users:16, batch:16, seq:20000, desc:'Stress peak: 20–30 users. Demos, all-hands, deadline crunches.' },
+};
+
+function loadScenario(key) {
+  const s = scenarios[key];
+  setSlider('users', s.users, 'usersVal', '');
+  setSlider('batch', s.batch, 'batchVal', '');
+  document.getElementById('seqLen').value = s.seq;
+  syncSliderK('seqLen', 'seqLenVal');
+  document.getElementById('scenario-desc').textContent = s.desc;
+  document.querySelectorAll('.scenario-tab').forEach((t,i) => {
+    t.classList.toggle('active', ['offpeak','normal','peak','stresspeak'][i] === key);
+  });
+  calc();
+}
+
+// Init
+loadScenario('peak');
+</script>
+</body>
+</html>
